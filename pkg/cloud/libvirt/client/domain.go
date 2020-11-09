@@ -65,6 +65,19 @@ func newDomainDef(virConn *libvirt.Connect) libvirtxml.Domain {
 		domainDef.Type = "kvm"
 	}
 
+	arch, err := getHostArchitecture(virConn)
+	if err != nil {
+		glog.Errorf("Error retrieving host architecture: %s", err)
+	}
+
+	if arch == "aarch64" {
+		domainDef.OS.Loader = &libvirtxml.DomainLoader{
+			Path:     "/usr/share/edk2/aarch64/QEMU_EFI-silent-pflash.raw",
+			Readonly: "yes",
+			Type:     "pflash",
+			Secure:   "no",
+		}
+	}
 	return domainDef
 }
 
@@ -109,7 +122,10 @@ func newDevicesDef(virConn *libvirt.Connect) *libvirtxml.DomainDeviceList {
 	// Both "s390" and "s390x" are linux kernel architectures for Linux on IBM z Systems, and they are for 31-bit and 64-bit respectively.
 	// Graphics/Spice isn't supported on s390/s390x platform.
 	// Same case for PowerPC systems as well
-	if !strings.HasPrefix(arch, "s390") && !strings.HasPrefix(arch, "ppc64") {
+	switch arch {
+	case "s390", "s390x", "ppc64", "ppc64le", "aarch64":
+		domainList.Graphics = nil
+	default:
 		domainList.Graphics = []libvirtxml.DomainGraphic{
 			{
 				Spice: &libvirtxml.DomainGraphicSpice{
@@ -118,7 +134,6 @@ func newDevicesDef(virConn *libvirt.Connect) *libvirtxml.DomainDeviceList {
 			},
 		}
 	}
-
 	return &domainList
 }
 
